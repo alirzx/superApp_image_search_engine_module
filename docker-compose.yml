@@ -2,10 +2,32 @@
 name: superapp-image-search
 
 services:
+  # Initializes persistent storage permissions before API startup.
+  data-init:
+    image: alpine:3.21
+    user: "0:0"
+    restart: "no"
+    environment:
+      APP_UID: ${RUN_UID:-1000}
+      APP_GID: ${RUN_GID:-1000}
+    volumes:
+      - ${DATA_PATH:-./.data}:/data
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        mkdir -p /data/metadata /data/faiss /data/uploads
+        chown -R "$$APP_UID:$$APP_GID" /data
+        chmod -R u+rwX /data
+        echo "Data directory permissions initialized."
+
   api:
     build:
       context: .
       dockerfile: backend/Dockerfile
+
+    depends_on:
+      data-init:
+        condition: service_completed_successfully
 
     environment:
       APP_ENV: ${APP_ENV:-development}
@@ -28,25 +50,14 @@ services:
       MKL_NUM_THREADS: "1"
 
     volumes:
-      - type: bind
-        source: ${DATA_PATH:-./.data}
-        target: /data
-        bind:
-          create_host_path: true
-
-      - type: bind
-        source: ${MODEL_PATH:-./.models/siglip2}
-        target: /models/siglip2
-        read_only: true
-        bind:
-          create_host_path: true
+      - ${DATA_PATH:-./.data}:/data
+      - ${MODEL_PATH:-./.models/siglip2}:/models/siglip2:ro
 
     ports:
       - "${API_BIND_IP:-127.0.0.1}:${API_PORT:-8004}:8004"
 
     restart: unless-stopped
     init: true
-
     user: "${RUN_UID:-1000}:${RUN_GID:-1000}"
 
     cpus: "${API_CPUS:-4}"
@@ -59,17 +70,6 @@ services:
     cap_drop:
       - ALL
 
-    healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8004/health/ready', timeout=5)"
-      interval: 30s
-      timeout: 8s
-      start_period: 120s
-      retries: 3
-
   ui:
     build:
       context: .
@@ -80,7 +80,7 @@ services:
 
     depends_on:
       api:
-        condition: service_healthy
+        condition: service_started
 
     restart: unless-stopped
     init: true
