@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+!.env.example
+!.env.production.example
+.data
+.models
+**/__pycache__
+**/.pytest_cache
+**/.venv
+**/node_modules
+.ci-venv
+frontend/dist
+benchmarks/results
+*.zip

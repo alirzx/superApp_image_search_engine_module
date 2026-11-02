@@ -13,7 +13,7 @@ function SecureImage({path,alt}:{path:string;alt:string}){
 function ResultCard({result, onDelete}:{result:SearchResult; onDelete:(id:string)=>void}){
   return <article className="result"><div className="result-photo"><SecureImage path={result.thumbnail_url} alt={result.metadata.filename}/><span className="rank">#{result.rank}</span></div>
     <div className="result-body"><strong title={result.metadata.filename}>{result.metadata.filename}</strong>
-    <div className="card-meta"><span>{result.metadata.width} × {result.metadata.height}</span><span>شباهت: {(result.score*100).toFixed(1)}%</span></div>
+    <div className="card-meta"><span>{result.metadata.width} × {result.metadata.height}</span><span>امتیاز شباهت: {result.score.toFixed(3)}</span></div>
     <button className="text-button" onClick={()=>onDelete(result.image_id)}>حذف از مجموعه</button></div></article>;
 }
 function App(){

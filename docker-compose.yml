@@ -27,14 +27,16 @@ services:
       - ${DATA_PATH:-./.data}:/data
       - ${MODEL_PATH:-./.models/siglip2}:/models/siglip2:ro
     ports:
-      - '127.0.0.1:${API_PORT:-8004}:8004'
+      - '${API_BIND_IP:-127.0.0.1}:${API_PORT:-8004}:8004'
     restart: unless-stopped
+    init: true
     user: "${RUN_UID:-1000}:${RUN_GID:-1000}"
     cpus: '${API_CPUS:-4}'
     mem_limit: ${API_MEMORY_LIMIT:-6g}
     pids_limit: 256
     security_opt:
       - no-new-privileges:true
+    cap_drop: [ALL]
   ui:
     build:
       context: .
@@ -42,9 +44,13 @@ services:
     ports:
       - '${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8085}:80'
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     restart: unless-stopped
-    cpus: '0.5'
-    mem_limit: 256m
+    init: true
+    cpus: '${UI_CPUS:-0.5}'
+    mem_limit: ${UI_MEMORY_LIMIT:-256m}
     security_opt:
       - no-new-privileges:true
+
+# Single instance only; SQLite and the CPU model must not be scaled as replicas.

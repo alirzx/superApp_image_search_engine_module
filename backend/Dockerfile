@@ -13,5 +13,5 @@ COPY backend/app /srv/app
 RUN addgroup --system app && adduser --system --ingroup app app && mkdir -p /data /models && chown -R app:app /data
 USER app
 EXPOSE 8004
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8004/health/live', timeout=3)" || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8004/health/ready', timeout=3)" || exit 1
 CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8004","--workers","1","--proxy-headers","--forwarded-allow-ips","127.0.0.1"]

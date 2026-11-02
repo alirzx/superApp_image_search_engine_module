@@ -108,3 +108,8 @@ The baseline is **single-instance and single-tenant** using one shared API key. 
 ## Model and project license
 
 Project source is Apache-2.0. Pretrained weights and third-party packages retain their respective licenses and terms; check and record all of them at deployment. The model is fetched independently at a pinned upstream commit.
+
+
+## Organizational CI/CD
+
+GitLab `main` uses `linux/bina/shell` and a manual SSH deployment. `RUN_SERVICES=0` is the safe default, building images without starting CPU inference. See [CI_DEPLOYMENT.md](docs/CI_DEPLOYMENT.md).
