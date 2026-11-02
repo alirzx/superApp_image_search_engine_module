@@ -1,9 +1,12 @@
+
 name: superapp-image-search
+
 services:
   api:
     build:
       context: .
       dockerfile: backend/Dockerfile
+
     environment:
       APP_ENV: ${APP_ENV:-development}
       API_AUTH_ENABLED: ${API_AUTH_ENABLED:-true}
@@ -18,39 +21,72 @@ services:
       MAX_TOP_K: ${MAX_TOP_K:-50}
       MAX_BATCH_IMAGES: ${MAX_BATCH_IMAGES:-20}
       DATA_DIR: /data
-      HF_HUB_OFFLINE: '1'
-      TRANSFORMERS_OFFLINE: '1'
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
       OMP_NUM_THREADS: ${INFERENCE_THREADS:-2}
-      OPENBLAS_NUM_THREADS: '1'
-      MKL_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+
     volumes:
-      - ${DATA_PATH:-./.data}:/data
-      - ${MODEL_PATH:-./.models/siglip2}:/models/siglip2:ro
+      - type: bind
+        source: ${DATA_PATH:-./.data}
+        target: /data
+        bind:
+          create_host_path: true
+
+      - type: bind
+        source: ${MODEL_PATH:-./.models/siglip2}
+        target: /models/siglip2
+        read_only: true
+        bind:
+          create_host_path: true
+
     ports:
-      - '${API_BIND_IP:-127.0.0.1}:${API_PORT:-8004}:8004'
+      - "${API_BIND_IP:-127.0.0.1}:${API_PORT:-8004}:8004"
+
     restart: unless-stopped
     init: true
+
     user: "${RUN_UID:-1000}:${RUN_GID:-1000}"
-    cpus: '${API_CPUS:-4}'
+
+    cpus: "${API_CPUS:-4}"
     mem_limit: ${API_MEMORY_LIMIT:-6g}
     pids_limit: 256
+
     security_opt:
       - no-new-privileges:true
-    cap_drop: [ALL]
+
+    cap_drop:
+      - ALL
+
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8004/health/ready', timeout=5)"
+      interval: 30s
+      timeout: 8s
+      start_period: 120s
+      retries: 3
+
   ui:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+
     ports:
-      - '${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8085}:80'
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8085}:80"
+
     depends_on:
       api:
         condition: service_healthy
+
     restart: unless-stopped
     init: true
-    cpus: '${UI_CPUS:-0.5}'
+
+    cpus: "${UI_CPUS:-0.5}"
     mem_limit: ${UI_MEMORY_LIMIT:-256m}
+
     security_opt:
       - no-new-privileges:true
-
-# Single instance only; SQLite and the CPU model must not be scaled as replicas.
