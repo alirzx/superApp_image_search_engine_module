@@ -1,0 +1,8 @@
+# Example: docker compose -f docker-compose.yml -f docker-compose.production.yml up -d
+services:
+  api:
+    image: ${API_IMAGE:?Set API_IMAGE to published immutable registry tag}
+    environment:
+      APP_ENV: production
+  ui:
+    image: ${UI_IMAGE:?Set UI_IMAGE to published immutable registry tag}
