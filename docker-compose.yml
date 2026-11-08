@@ -114,6 +114,10 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
 
+    # Nginx supplies the shared API key to upstream; browsers never receive it.
+    environment:
+      API_KEY: ${API_KEY:?Set API_KEY in .env (min 24 characters)}
+
     ports:
       - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8085}:80"
 

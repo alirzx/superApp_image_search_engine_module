@@ -3,15 +3,12 @@ export type Job = {job_id:string;image_id:string;status:string;error:string|null
 export type SearchResult = {image_id:string;score:number;rank:number;thumbnail_url:string;metadata:{filename:string;width:number;height:number}};
 export type SearchResponse = {request_id:string;collection_id:string;query_type:string;processing_time_ms:number;results:SearchResult[]};
 const BASE='/api';
-export function getKey():string {return sessionStorage.getItem('image_search_api_key')??'';}
-export function setKey(value:string):void {if(value)sessionStorage.setItem('image_search_api_key',value);else sessionStorage.removeItem('image_search_api_key');}
 async function readError(response:Response):Promise<string>{
   try {const body=await response.json();return typeof body.detail==='string'?body.detail:JSON.stringify(body.detail??body);}
   catch {return `HTTP ${response.status}`;}
 }
 export async function request<T>(path:string, init:RequestInit={}):Promise<T>{
   const headers=new Headers(init.headers);
-  if(getKey())headers.set('X-API-Key',getKey());
   if(init.body && typeof init.body==='string') headers.set('Content-Type','application/json');
   const response=await fetch(`${BASE}${path}`,{...init,headers,cache:'no-store'});
   if(!response.ok)throw new Error(await readError(response));
@@ -19,7 +16,7 @@ export async function request<T>(path:string, init:RequestInit={}):Promise<T>{
   return response.json() as Promise<T>;
 }
 export async function fetchThumbnail(path:string):Promise<Blob>{
-  const response=await fetch(`${BASE}${path}`,{headers:{'X-API-Key':getKey()},cache:'no-store'});
+  const response=await fetch(`${BASE}${path}`,{cache:'no-store'});
   if(!response.ok)throw new Error('Thumbnail access denied');
   return response.blob();
 }

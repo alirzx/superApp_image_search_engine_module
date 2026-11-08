@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {Collection, SearchResult, fetchThumbnail, getKey, imageSearch, request, setKey, textSearch, uploadImages} from './api';
+import {Collection, SearchResult, fetchThumbnail, imageSearch, request, textSearch, uploadImages} from './api';
 import './style.css';
 
 type Mode = 'text'|'image';
@@ -17,7 +17,6 @@ function ResultCard({result, onDelete}:{result:SearchResult; onDelete:(id:string
     <button className="text-button" onClick={()=>onDelete(result.image_id)}>حذف از مجموعه</button></div></article>;
 }
 function App(){
-  const [keyInput,setKeyInput]=useState(getKey());
   const [connected,setConnected]=useState(false);
   const [collections,setCollections]=useState<Collection[]>([]);
   const [collection,setCollection]=useState('default');
@@ -38,7 +37,14 @@ function App(){
   const refresh=useCallback(async()=>{
     const data=await request<{collections:Collection[]}>('/v1/collections');setCollections(data.collections);setConnected(true);
   },[]);
-  useEffect(()=>{if(getKey())refresh().catch(()=>setConnected(false));},[refresh]);
+  useEffect(()=>{
+    // Discover API readiness automatically on first render and reconnect on transient failures.
+    let active=true;
+    const check=()=>refresh().catch(()=>{if(active)setConnected(false);});
+    void check();
+    const timer=window.setInterval(check,10000);
+    return ()=>{active=false;window.clearInterval(timer);};
+  },[refresh]);
   useEffect(()=>{if(pendingJobs.length===0)return;const timer=setInterval(async()=>{
     try{const states=await Promise.all(pendingJobs.map(id=>request<{status:string;error:string|null}>(`/v1/jobs/${id}`)));
       const active=pendingJobs.filter((_,i)=>states[i].status==='processing'||states[i].status==='queued');
@@ -46,7 +52,6 @@ function App(){
       if(active.length===0)setStatus(`ایندکس‌گذاری تمام شد. ${states.filter(s=>s.status==='completed').length} پردازش موفق در آخرین بررسی.`);
     }catch(e){setError((e as Error).message);}
   },1800);return ()=>clearInterval(timer);},[pendingJobs]);
-  async function connect(){setKey(keyInput.trim());setError('');try{await refresh();setStatus('ارتباط با API برقرار شد.');}catch(e){setConnected(false);setError((e as Error).message);}}
   async function addCollection(){if(!collectionName.trim())return;try{const c=await request<Collection>('/v1/collections',{method:'POST',body:JSON.stringify({name:collectionName.trim()})});await refresh();setCollection(c.id);setCollectionName('');}catch(e){setError((e as Error).message);}}
   async function upload(){if(!uploadFiles.length)return;setUploadBusy(true);setError('');try{const d=await uploadImages(uploadFiles,collection);
     setPendingJobs(prev=>[...prev,...d.accepted.map(x=>x.job_id)]);setStatus(`${d.accepted.length} تصویر در صف ایندکس‌گذاری قرار گرفت. ${d.rejected.length} مورد رد شد.`);setUploadFiles([]);}
@@ -63,8 +68,7 @@ function App(){
       <span className="service-badge"><i className={connected?'online':'offline'}/>{connected?'متصل به API':'بدون اتصال'}</span></header>
     <main><section className="hero"><div className="eyebrow">VISION INTELLIGENCE · CPU FIRST</div><h1>جست‌وجوی هوشمند <span>تصاویر</span></h1>
       <p>در مجموعه‌ تصاویر خود جست‌وجو کنید؛ با یک عکس مشابه یا توضیح متنی فارسی و انگلیسی.</p><div className="hero-pills"><span>Image → Image</span><span>Text → Image</span><span>SigLIP2 · CPU</span></div></section>
-      <section className="api-config panel"><div className="panel-label"><span className="step">01</span><div><h2>اتصال به سرویس</h2><p>کلید دسترسی فقط برای این نشست مرورگر نگهداری می‌شود.</p></div></div>
-        <div className="inline"><input type="password" aria-label="API Key" placeholder="X-API-Key" value={keyInput} onChange={e=>setKeyInput(e.target.value)} /><button onClick={connect}>بررسی اتصال</button></div></section>
+      <section className="api-config panel"><div className="panel-label"><span className="step">01</span><div><h2>اتصال خودکار به سرویس</h2><p>{connected?'اتصال به API برقرار است.':'در حال بررسی اتصال به API…'}</p></div></div></section>
       <div className="columns"><section className="panel"><div className="panel-label"><span className="step">02</span><div><h2>مجموعه تصاویر</h2><p>یک مجموعه انتخاب کرده یا مجموعه جدید بسازید.</p></div></div>
         <label>مجموعه فعال</label><select value={collection} onChange={e=>{setCollection(e.target.value);setResults([]);}}>{collections.length?collections.map(c=><option key={c.id} value={c.id}>{c.name}</option>):<option value="default">Default</option>}</select>
         <div className="inline"><input value={collectionName} placeholder="نام مجموعه جدید" onChange={e=>setCollectionName(e.target.value)}/><button className="secondary" onClick={addCollection} disabled={!connected}>ساخت</button></div>
