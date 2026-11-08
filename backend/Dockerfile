@@ -3,8 +3,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
     HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
     OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 WORKDIR /srv
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+# Signed Bookworm HTTPS APT mirrors with fallback, aligned with Speaker Diarization.
+ARG APT_PRIMARY_DEBIAN_URL=https://mirror.metanet.ch/debian
+ARG APT_PRIMARY_SECURITY_URL=https://mirror.metanet.ch/debian-security
+ARG APT_FALLBACK_DEBIAN_URL=https://mirrors.huaweicloud.com/repository/debian
+ARG APT_FALLBACK_SECURITY_URL=https://mirrors.huaweicloud.com/repository/debian-security
+COPY ops/install-debian-packages.sh /usr/local/bin/install-debian-packages
+RUN sh /usr/local/bin/install-debian-packages libgomp1 ca-certificates
 # CPU wheels only. Never install CUDA-enabled PyTorch packages in this image.
 # Public Python dependencies: Liara -> Chabokan -> official PyPI.
 # CPU-only torch uses the exact +cpu wheel. PyPI mirrors may not carry it,

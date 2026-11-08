@@ -54,3 +54,30 @@ did **not** modify CI, per the requested ownership boundary. The DevOps team
 should independently verify SSH host fingerprints and File variable handling.
 `docker compose up --build -d` can still fail if the host cannot reach a
 required registry or Hugging Face; inspect setup and API logs.
+
+## Debian APT build network recovery
+
+The Docker build previously used Debian Bookworm's default HTTP port 80 URL
+and failed to download signed package indexes, causing `libgomp1` not found.
+The backend now uses the **same APT installer as the Speaker Diarization
+module**: `ops/install-debian-packages.sh`, with signed HTTPS package indexes,
+strict `APT::Update::Error-Mode=any`, bounded 20-second APT timeouts and
+primary/fallback mirrors:
+
+- Primary: `https://mirror.metanet.ch/debian`, `https://mirror.metanet.ch/debian-security`
+- Fallback: `https://mirrors.huaweicloud.com/repository/debian`,
+  `https://mirrors.huaweicloud.com/repository/debian-security`
+
+These URLs may be overridden with `APT_*` in the GitLab `ENV_FILE`; no new
+variables are required because the Dockerfile has defaults. All repositories
+remain signature-verified by the Debian archive keyring. No disabled TLS,
+insecure APT setting or unauthenticated packages.
+
+Liara -> Chabokan -> PyPI remains the **Python** package order. CPU-only Torch
+keeps its official CPU-specific wheel index fallback. Other network
+dependencies remain Docker Hub, Debian HTTPS, npm and Hugging Face.
+If both Debian mirrors fail, verify Docker-build DNS/HTTPS egress or proxy
+settings on server 209; a repository-only change cannot fix a blocked network.
+
+The teammate-owned `.gitlab-ci.yml` is unchanged and still executes
+`docker compose up --build -d` on server 209 via SSH.
