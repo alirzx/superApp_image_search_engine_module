@@ -6,12 +6,32 @@ WORKDIR /srv
 RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 # CPU wheels only. Never install CUDA-enabled PyTorch packages in this image.
-RUN pip install --no-cache-dir torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
+# Public Python dependencies: Liara -> Chabokan -> official PyPI.
+# CPU-only torch uses the exact +cpu wheel. PyPI mirrors may not carry it,
+# so official PyTorch CPU wheel index is the final architecture-safe fallback.
+ARG PIP_PRIMARY_INDEX_URL=https://package-mirror.liara.ir/repository/pypi/simple
+ARG PIP_SECONDARY_INDEX_URL=https://mirror2.chabokan.net/pypi/simple/
+ARG PIP_FALLBACK_INDEX_URL=https://pypi.org/simple
+ARG PYTORCH_CPU_INDEX_URL=https://download.pytorch.org/whl/cpu
+RUN set -eu; \
+    if python -m pip install --no-cache-dir --retries 1 --timeout 25 --index-url "$PIP_PRIMARY_INDEX_URL" 'torch==2.5.1+cpu'; then \
+      echo "CPU torch installed from Liara mirror"; \
+    elif python -m pip install --no-cache-dir --retries 1 --timeout 25 --index-url "$PIP_SECONDARY_INDEX_URL" 'torch==2.5.1+cpu'; then \
+      echo "CPU torch installed from Chabokan mirror"; \
+    else \
+      echo "CPU torch not available from PyPI mirrors: using official CPU wheel index"; \
+      python -m pip install --no-cache-dir --retries 2 --timeout 60 --index-url "$PYTORCH_CPU_INDEX_URL" --extra-index-url "$PIP_FALLBACK_INDEX_URL" 'torch==2.5.1+cpu'; \
+    fi; \
+    python -c "import torch; assert torch.version.cuda is None, 'Expected CPU-only PyTorch'"
 COPY backend/requirements.txt /srv/requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN set -eu; \
+    python -m pip install --no-cache-dir --retries 1 --timeout 25 --index-url "$PIP_PRIMARY_INDEX_URL" -r requirements.txt || \
+    python -m pip install --no-cache-dir --retries 1 --timeout 25 --index-url "$PIP_SECONDARY_INDEX_URL" -r requirements.txt || \
+    python -m pip install --no-cache-dir --retries 2 --timeout 60 --index-url "$PIP_FALLBACK_INDEX_URL" -r requirements.txt
 COPY backend/app /srv/app
+COPY scripts/download_model.py scripts/verify_model.py scripts/ensure_model.py /srv/scripts/
 RUN addgroup --system app && adduser --system --ingroup app app && mkdir -p /data /models && chown -R app:app /data
 USER app
 EXPOSE 8004
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8004/health/ready', timeout=3)" || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=180s CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8004/health/ready', timeout=3)" || exit 1
 CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8004","--workers","1","--proxy-headers","--forwarded-allow-ips","127.0.0.1"]

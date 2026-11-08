@@ -1,6 +1,12 @@
 
 name: superapp-image-search
 
+x-pip-build-args: &pip-build-args
+  PIP_PRIMARY_INDEX_URL: ${PIP_PRIMARY_INDEX_URL:-https://package-mirror.liara.ir/repository/pypi/simple}
+  PIP_SECONDARY_INDEX_URL: ${PIP_SECONDARY_INDEX_URL:-https://mirror2.chabokan.net/pypi/simple/}
+  PIP_FALLBACK_INDEX_URL: ${PIP_FALLBACK_INDEX_URL:-https://pypi.org/simple}
+  PYTORCH_CPU_INDEX_URL: ${PYTORCH_CPU_INDEX_URL:-https://download.pytorch.org/whl/cpu}
+
 services:
   # Initializes persistent storage permissions before API startup.
   data-init:
@@ -20,13 +26,42 @@ services:
         chmod -R u+rwX /data
         echo "Data directory permissions initialized."
 
+  # Runs automatically before API. Fresh server deployments download the
+  # pinned Hugging Face model; subsequent runs verify the saved manifest.
+  # Mirrors below are for PyPI only, not Hugging Face model weights.
+  model-setup:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args: *pip-build-args
+    restart: "no"
+    user: "0:0"
+    environment:
+      MODEL_ID: ${MODEL_ID:-google/siglip2-base-patch32-256}
+      MODEL_REVISION: ${MODEL_REVISION:-}
+      MODEL_LOCAL_PATH: /models/siglip2
+      HF_HUB_OFFLINE: "0"
+      TRANSFORMERS_OFFLINE: "0"
+    volumes:
+      - ${MODEL_PATH:-./.models/siglip2}:/models/siglip2
+    entrypoint: ["python", "/srv/scripts/ensure_model.py"]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cpus: "${SETUP_CPUS:-2}"
+    mem_limit: ${SETUP_MEMORY_LIMIT:-2g}
+
   api:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args: *pip-build-args
 
     depends_on:
       data-init:
+        condition: service_completed_successfully
+      model-setup:
         condition: service_completed_successfully
 
     environment:
