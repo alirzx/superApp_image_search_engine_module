@@ -81,3 +81,29 @@ settings on server 209; a repository-only change cannot fix a blocked network.
 
 The teammate-owned `.gitlab-ci.yml` is unchanged and still executes
 `docker compose up --build -d` on server 209 via SSH.
+
+## PyTorch CPU-only wheel and PyPI timeout (8 Nov 2026)
+
+A build reached the Torch stage and established that Liara and Chabokan
+resolve `torch==2.5.1` but do **not** provide `torch==2.5.1+cpu`.
+The old fallback used `--extra-index-url https://pypi.org/simple`; this
+caused `pypi.org:443` read timeouts even when the CPU index was configured.
+
+The backend Dockerfile now installs regular application dependencies and
+Torch's ordinary Python dependencies from Liara first, Chabokan second, and
+official PyPI only if both fail. It then obtains **only**
+`torch==2.5.1+cpu` from `PYTORCH_CPU_INDEX_URL` with `--no-deps`,
+without contacting PyPI while selecting the Torch wheel. Validation runs
+`pip check` and confirms `torch.version.cuda is None`.
+
+PyTorch's published 2.5.1 CPU wheel index includes the Python 3.11
+Linux x86_64 wheel; the version itself is valid. If the build fails
+accessing `download.pytorch.org:443`, the server needs approved outbound
+HTTPS to the CPU wheel endpoint, or an internal mirror hosting the exact
+`+cpu` wheel. Set `PYTORCH_CPU_INDEX_URL` in GitLab's existing
+`ENV_FILE` if DevOps provides such an index. Do not silently replace
+`2.5.1+cpu` with the generic PyPI Linux `torch==2.5.1`: it can bring
+CUDA runtime libraries, contrary to the CPU-first resource budget.
+
+The teammate-owned GitLab `.gitlab-ci.yml` remains unchanged. No new
+environment variable is required.
