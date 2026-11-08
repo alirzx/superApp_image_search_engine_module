@@ -19,3 +19,6 @@ coverage.xml
 benchmarks/results/
 .DS_Store
 *.tsbuildinfo
+server.env
+local.env
+*.env
